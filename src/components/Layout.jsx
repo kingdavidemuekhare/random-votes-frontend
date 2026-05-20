@@ -1,0 +1,65 @@
+import { NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import LiveStatus from './LiveStatus';
+
+const Layout = () => {
+  const { user, logout, backendOutage } = useAuth();
+  const remainingSeconds = backendOutage
+    ? Math.max(1, Math.ceil(backendOutage.remainingMs / 1000))
+    : 0;
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <img
+            alt="KayPolls logo"
+            className="brand-logo"
+            src="/branding/logo.png"
+          />
+          <div>
+            <p className="eyebrow">KayPolls</p>
+            <h1>Random Picks Platform</h1>
+          </div>
+        </div>
+
+        {user ? (
+          <div className="topbar-actions">
+            <LiveStatus compact={user.role === 'user'} />
+            <div className="user-chip">
+              <span>{user.name}</span>
+              {user.role === 'user' ? null : <strong>{user.role}</strong>}
+            </div>
+            <button className="ghost-button" onClick={() => logout()} type="button">
+              Logout
+            </button>
+          </div>
+        ) : null}
+      </header>
+
+      {user ? (
+        <nav className="navigation">
+          {user.role === 'admin' ? <NavLink to="/admin">Admin Dashboard</NavLink> : null}
+          {user.role === 'creator' ? <NavLink to="/creator">Creator Dashboard</NavLink> : null}
+        </nav>
+      ) : null}
+
+      {backendOutage ? (
+        <div className="system-banner warning-banner" role="status">
+          <strong>Connection to the server was interrupted.</strong>
+          <span>
+            Please be patient while we reconnect. If this does not recover within{' '}
+            {remainingSeconds} second{remainingSeconds === 1 ? '' : 's'}, you will be signed out
+            to protect your saved progress.
+          </span>
+        </div>
+      ) : null}
+
+      <main className="page-content">
+        <Outlet />
+      </main>
+    </div>
+  );
+};
+
+export default Layout;
