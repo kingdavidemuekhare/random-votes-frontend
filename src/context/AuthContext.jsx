@@ -1,12 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { loginRequest, registerRequest } from '../services/authService';
+import { loginRequest, logoutRequest, registerRequest } from '../services/authService';
 import {
   claimDeviceLock,
   getActiveDeviceUser,
   releaseDeviceLock,
   startDeviceLockHeartbeat
 } from '../services/deviceLockService';
-import { setAuthToken } from '../services/api';
 import { connectSocket, disconnectSocket, onSocketStateChanged } from '../services/socketService';
 
 const AuthContext = createContext(null);
@@ -40,13 +39,13 @@ const readStoredAuth = () => {
   try {
     const parsed = JSON.parse(storedValue);
 
-    if (typeof parsed?.token !== 'string' || !parsed.token || !parsed?.user) {
+    if (!parsed?.user) {
       window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
       return { token: null, user: null };
     }
 
     return {
-      token: parsed.token,
+      token: null,
       user: parsed.user
     };
   } catch (error) {
@@ -60,13 +59,13 @@ const writeStoredAuth = (authState) => {
     return;
   }
 
-  if (!authState?.token || !authState?.user) {
+  if (!authState?.user) {
     window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
     clearLegacyAuthStorage();
     return;
   }
 
-  window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authState));
+  window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: authState.user }));
   clearLegacyAuthStorage();
 };
 
@@ -133,18 +132,16 @@ export const AuthProvider = ({ children }) => {
   const authNoticeTimeoutRef = useRef(null);
 
   useEffect(() => {
-    if (authState.token) {
-      setAuthToken(authState.token);
-      connectSocket(authState.token);
+    if (authState.user) {
+      connectSocket();
       return;
     }
 
-    setAuthToken(null);
     disconnectSocket();
-  }, [authState.token]);
+  }, [authState.user]);
 
   useEffect(() => {
-    if (!authState.token || !authState.user?.name) {
+    if (!authState.user?.name) {
       return;
     }
 
@@ -153,7 +150,7 @@ export const AuthProvider = ({ children }) => {
     if (!lockResult.ok) {
       performLogout(`This device is already signed in as ${lockResult.activeUser}. Log out there first.`);
     }
-  }, [authState.token, authState.user?.name]);
+  }, [authState.user?.name]);
 
   useEffect(() => {
     writeStoredAuth(authState);
@@ -222,7 +219,7 @@ export const AuthProvider = ({ children }) => {
   }, [authState.user?.name]);
 
   useEffect(() => {
-    if (!authState.token) {
+    if (!authState.user) {
       clearBackendOutage();
       clearAwayLogoutTimer();
       clearAwayState();
@@ -278,10 +275,10 @@ export const AuthProvider = ({ children }) => {
       unsubscribe?.();
       stopOutageCountdown();
     };
-  }, [authState.token]);
+  }, [authState.user]);
 
   useEffect(() => {
-    if (!authState.token) {
+    if (!authState.user) {
       clearAwayLogoutTimer();
       clearAwayState();
       return undefined;
@@ -367,7 +364,7 @@ export const AuthProvider = ({ children }) => {
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('pageshow', handlePageShow);
     };
-  }, [authState.token]);
+  }, [authState.user]);
 
   const persistAuth = (payload) => {
     const lockResult = claimDeviceLock(payload.user.name);
@@ -379,7 +376,7 @@ export const AuthProvider = ({ children }) => {
     setAuthNotice('');
     clearAwayState();
     setAuthState({
-      token: payload.token,
+      token: null,
       user: payload.user
     });
   };
@@ -425,6 +422,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = (notice = '') => {
+    logoutRequest().catch(() => {});
     performLogout(typeof notice === 'string' ? notice : '');
   };
 
@@ -435,9 +433,9 @@ export const AuthProvider = ({ children }) => {
 
   const value = useMemo(
     () => ({
-      token: authState.token,
+      token: null,
       user: authState.user,
-      isAuthenticated: Boolean(authState.token),
+      isAuthenticated: Boolean(authState.user),
       authLoading,
       authNotice,
       backendOutage,

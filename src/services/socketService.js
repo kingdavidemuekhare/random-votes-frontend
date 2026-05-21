@@ -88,18 +88,14 @@ const attachSocketListeners = (activeSocket) => {
   activeSocket.on('creator:votesUpdated', handleCreatorVotesUpdated);
 };
 
-export const connectSocket = (token) => {
-  if (!token) {
-    return null;
-  }
-
+export const connectSocket = () => {
   if (socket) {
     detachSocketListeners(socket);
     socket.disconnect();
   }
 
   socket = io(SOCKET_URL, {
-    auth: { token }
+    withCredentials: true
   });
   setSocketConnected(socket.connected);
   attachSocketListeners(socket);

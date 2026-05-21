@@ -10,23 +10,11 @@ const getDefaultApiBaseUrl = () => {
 };
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || getDefaultApiBaseUrl()
-});
-
-let authToken = null;
-
-export const setAuthToken = (token) => {
-  authToken = token || null;
-};
-
-api.interceptors.request.use((config) => {
-  if (!authToken) {
-    return config;
-  }
-
-  config.headers.Authorization = `Bearer ${authToken}`;
-
-  return config;
+  baseURL: import.meta.env.VITE_API_URL || getDefaultApiBaseUrl(),
+  headers: {
+    'X-Kaypolls-Request': 'XMLHttpRequest'
+  },
+  withCredentials: true
 });
 
 export default api;
